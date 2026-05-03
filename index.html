@@ -1,0 +1,786 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>3D Periodic Table</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Share+Tech+Mono&display=swap');
+
+:root {
+  --cs: 58px; /* card size – overridden by JS on mobile */
+  --bg: #01020a;
+  --glass: rgba(4,7,20,0.78);
+  --border: rgba(255,255,255,0.08);
+  --alkali:     #ff4757;
+  --alkaline:   #ffa502;
+  --lanthanide: #2ed573;
+  --actinide:   #1e90ff;
+  --transition: #00d2d3;
+  --post:       #a29bfe;
+  --metalloid:  #fdcb6e;
+  --nonmetal:   #fd79a8;
+  --halogen:    #ff6348;
+  --noble:      #eccc68;
+  --unknown:    #576574;
+}
+
+*, *::before, *::after { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+html, body { width:100%; height:100%; background:var(--bg); overflow:hidden; touch-action:none; font-family:'Share Tech Mono',monospace; color:#fff; }
+
+/* ── BACKGROUND ── */
+#bgc { position:fixed; inset:0; width:100%; height:100%; pointer-events:none; z-index:0; }
+
+/* ── SCENE ── */
+#scene {
+  position:fixed; inset:0; z-index:1;
+  perspective:900px;
+  display:flex; align-items:center; justify-content:center;
+  overflow:hidden;
+  cursor:grab;
+}
+#scene:active { cursor:grabbing; }
+#world { position:relative; transform-style:preserve-3d; width:0; height:0; will-change:transform; }
+
+/* ── ATOM ── */
+.atom {
+  position:absolute;
+  width:var(--cs); height:var(--cs);
+  transform-style:preserve-3d;
+  cursor:pointer;
+  transition: transform 1.12s cubic-bezier(0.34,1.08,0.64,1), opacity 0.5s ease;
+  will-change:transform;
+}
+.face {
+  position:absolute; inset:0; border-radius:8px;
+  display:flex; flex-direction:column; align-items:center; justify-content:center;
+  overflow:hidden;
+  background: linear-gradient(145deg, color-mix(in srgb,var(--c) 10%,#01020a), #01020a 66%);
+  border: 1px solid color-mix(in srgb,var(--c) 38%,transparent);
+  box-shadow: 0 0 8px color-mix(in srgb,var(--c) 20%,transparent),
+              0 0 1px color-mix(in srgb,var(--c) 50%,transparent) inset;
+  transition: all 0.24s ease;
+}
+.face::after {
+  content:''; position:absolute; top:0; left:0; right:0; height:42%;
+  background:linear-gradient(to bottom,rgba(255,255,255,0.07),transparent);
+  border-radius:8px 8px 0 0; pointer-events:none;
+}
+.atom:hover .face {
+  background: linear-gradient(145deg, color-mix(in srgb,var(--c) 22%,#01020a), #01020a 52%);
+  border-color: color-mix(in srgb,var(--c) 90%,white);
+  box-shadow: 0 0 22px color-mix(in srgb,var(--c) 65%,transparent),
+              0 0 55px color-mix(in srgb,var(--c) 28%,transparent),
+              0 0 2px  color-mix(in srgb,var(--c) 85%,transparent) inset;
+}
+.atom.dim { opacity:0.04 !important; pointer-events:none !important; }
+
+.a-num  { font-size:8px;  color:var(--c); opacity:.50; line-height:1; margin-top:4px; }
+.a-sym  { font-family:'Orbitron',sans-serif; font-weight:700; color:var(--c); line-height:1.05; }
+.a-name { font-size:6px;  color:var(--c); opacity:.55; text-align:center; padding:0 2px; line-height:1.2; }
+.a-mass { font-size:6px;  color:var(--c); opacity:.32; }
+.sym1 .a-sym { font-size:20px; }
+.sym2 .a-sym { font-size:17px; }
+.sym3 .a-sym { font-size:13px; }
+
+/* ══════════════════════════════════════════
+   DESKTOP UI  (> 768px)
+══════════════════════════════════════════ */
+#ui-desktop {
+  position:fixed; top:0; left:0; right:0; z-index:50;
+  display:flex; flex-direction:column; align-items:center;
+  padding:10px 12px 0; gap:5px; pointer-events:none;
+}
+#logo {
+  font-family:'Orbitron',sans-serif;
+  font-size:10px; letter-spacing:5px;
+  color:rgba(255,255,255,0.16); text-transform:uppercase; pointer-events:none;
+  margin-top:4px;
+}
+.dbar {
+  display:flex; flex-wrap:wrap; gap:5px; justify-content:center;
+  pointer-events:all;
+  background:var(--glass); backdrop-filter:blur(20px); -webkit-backdrop-filter:blur(20px);
+  border:1px solid var(--border); border-radius:40px; padding:6px 10px;
+}
+.mbtn {
+  font-family:'Orbitron',sans-serif; font-size:9px; font-weight:700;
+  letter-spacing:1.5px; padding:6px 14px; border-radius:30px;
+  border:1px solid rgba(255,255,255,0.1); background:transparent;
+  color:rgba(255,255,255,0.38); cursor:pointer;
+  transition:all 0.2s; text-transform:uppercase; white-space:nowrap;
+}
+.mbtn:hover { color:#fff; border-color:rgba(255,255,255,0.3); }
+.mbtn.on { color:#fff; border-color:rgba(255,255,255,0.42); background:rgba(255,255,255,0.09); box-shadow:0 0 10px rgba(255,255,255,0.08); }
+.fbtn {
+  font-family:'Share Tech Mono',monospace; font-size:8px; padding:3px 9px;
+  border-radius:20px; border:1px solid transparent; cursor:pointer;
+  transition:all 0.18s; opacity:0.4; background:transparent; white-space:nowrap;
+}
+.fbtn.on, .fbtn:hover { opacity:1; }
+.fbtn[data-f=all]       { color:#fff;              border-color:rgba(255,255,255,0.25); }
+.fbtn[data-f=alkali]    { color:var(--alkali);      border-color:var(--alkali); }
+.fbtn[data-f=alkaline]  { color:var(--alkaline);    border-color:var(--alkaline); }
+.fbtn[data-f=transition]{ color:var(--transition);  border-color:var(--transition); }
+.fbtn[data-f=lanthanide]{ color:var(--lanthanide);  border-color:var(--lanthanide); }
+.fbtn[data-f=actinide]  { color:var(--actinide);    border-color:var(--actinide); }
+.fbtn[data-f=post]      { color:var(--post);        border-color:var(--post); }
+.fbtn[data-f=metalloid] { color:var(--metalloid);   border-color:var(--metalloid); }
+.fbtn[data-f=nonmetal]  { color:var(--nonmetal);    border-color:var(--nonmetal); }
+.fbtn[data-f=halogen]   { color:var(--halogen);     border-color:var(--halogen); }
+.fbtn[data-f=noble]     { color:var(--noble);       border-color:var(--noble); }
+
+/* Desktop search + zoom */
+#d-right {
+  position:fixed; top:50%; right:14px; transform:translateY(-50%);
+  z-index:50; display:flex; flex-direction:column; gap:6px; align-items:center;
+}
+#d-srch {
+  font-family:'Share Tech Mono',monospace; font-size:11px;
+  padding:7px 10px; width:130px;
+  background:var(--glass); backdrop-filter:blur(12px);
+  border:1px solid var(--border); border-radius:8px; color:#fff; outline:none;
+  transition:border-color 0.2s, width 0.25s;
+}
+#d-srch::placeholder { color:rgba(255,255,255,0.25); }
+#d-srch:focus { border-color:rgba(255,255,255,0.3); width:160px; }
+.zbtn {
+  width:32px; height:32px; background:var(--glass); backdrop-filter:blur(10px);
+  border:1px solid var(--border); border-radius:8px;
+  color:rgba(255,255,255,0.5); font-size:17px;
+  display:flex; align-items:center; justify-content:center;
+  cursor:pointer; transition:all 0.18s; user-select:none;
+}
+.zbtn:hover { color:#fff; border-color:rgba(255,255,255,0.3); }
+
+/* ══════════════════════════════════════════
+   MOBILE UI  (≤ 768px)
+══════════════════════════════════════════ */
+#ui-mobile {
+  position:fixed; bottom:0; left:0; right:0; z-index:50;
+  padding: 0 0 env(safe-area-inset-bottom,0px);
+}
+
+/* Bottom sheet */
+#bottom-sheet {
+  background:var(--glass); backdrop-filter:blur(22px); -webkit-backdrop-filter:blur(22px);
+  border-top:1px solid var(--border);
+  border-radius:20px 20px 0 0;
+  padding:8px 0 6px;
+}
+
+/* Drag handle */
+#bhandle {
+  width:36px; height:4px; border-radius:2px;
+  background:rgba(255,255,255,0.2); margin:0 auto 8px;
+}
+
+/* Horizontal scroll for modes */
+#m-scroll { overflow-x:auto; overflow-y:hidden; scrollbar-width:none; padding:0 12px 4px; }
+#m-scroll::-webkit-scrollbar { display:none; }
+#m-bar { display:inline-flex; gap:5px; white-space:nowrap; min-width:max-content; }
+
+.m-mbtn {
+  font-family:'Orbitron',sans-serif; font-size:9px; font-weight:700;
+  letter-spacing:1px; padding:7px 14px; border-radius:30px;
+  border:1px solid rgba(255,255,255,0.1); background:transparent;
+  color:rgba(255,255,255,0.4); cursor:pointer;
+  transition:all 0.2s; text-transform:uppercase; white-space:nowrap;
+}
+.m-mbtn:hover, .m-mbtn.on { color:#fff; border-color:rgba(255,255,255,0.4); background:rgba(255,255,255,0.1); }
+
+/* divider */
+.m-div { height:1px; background:var(--border); margin:6px 0; }
+
+/* Horizontal scroll for filters */
+#f-scroll { overflow-x:auto; overflow-y:hidden; scrollbar-width:none; padding:0 12px 6px; }
+#f-scroll::-webkit-scrollbar { display:none; }
+#f-bar { display:inline-flex; gap:5px; white-space:nowrap; min-width:max-content; }
+
+.m-fbtn {
+  font-family:'Share Tech Mono',monospace; font-size:8px;
+  padding:5px 10px; border-radius:20px; border:1px solid transparent;
+  cursor:pointer; transition:all 0.18s; opacity:0.42; background:transparent; white-space:nowrap;
+}
+.m-fbtn.on, .m-fbtn:hover { opacity:1; }
+.m-fbtn[data-f=all]       { color:#fff;              border-color:rgba(255,255,255,0.25); }
+.m-fbtn[data-f=alkali]    { color:var(--alkali);      border-color:var(--alkali); }
+.m-fbtn[data-f=alkaline]  { color:var(--alkaline);    border-color:var(--alkaline); }
+.m-fbtn[data-f=transition]{ color:var(--transition);  border-color:var(--transition); }
+.m-fbtn[data-f=lanthanide]{ color:var(--lanthanide);  border-color:var(--lanthanide); }
+.m-fbtn[data-f=actinide]  { color:var(--actinide);    border-color:var(--actinide); }
+.m-fbtn[data-f=post]      { color:var(--post);        border-color:var(--post); }
+.m-fbtn[data-f=metalloid] { color:var(--metalloid);   border-color:var(--metalloid); }
+.m-fbtn[data-f=nonmetal]  { color:var(--nonmetal);    border-color:var(--nonmetal); }
+.m-fbtn[data-f=halogen]   { color:var(--halogen);     border-color:var(--halogen); }
+.m-fbtn[data-f=noble]     { color:var(--noble);       border-color:var(--noble); }
+
+/* Mobile top logo */
+#m-logo {
+  position:fixed; top:12px; left:0; right:0; z-index:50;
+  text-align:center; pointer-events:none;
+  font-family:'Orbitron',sans-serif; font-size:8px; letter-spacing:4px;
+  color:rgba(255,255,255,0.15); text-transform:uppercase;
+}
+
+/* Mobile zoom */
+#m-zoom {
+  position:fixed; top:50%; left:12px; transform:translateY(-50%);
+  z-index:50; display:flex; flex-direction:column; gap:5px;
+}
+
+/* ══════════════════════════════════════════
+   TOOLTIP
+══════════════════════════════════════════ */
+#tip {
+  position:fixed; z-index:60; pointer-events:none;
+  background:rgba(2,4,15,0.93); backdrop-filter:blur(22px); -webkit-backdrop-filter:blur(22px);
+  border-radius:16px; padding:14px 20px 12px; text-align:center;
+  opacity:0; transition:opacity 0.22s, transform 0.22s;
+  border:1px solid rgba(255,255,255,0.09);
+  min-width:180px; max-width:min(300px,88vw);
+}
+/* Desktop: side tooltip */
+@media(min-width:769px) {
+  #tip { top:50%; right:160px; transform:translateY(-50%) translateX(8px); }
+  #tip.show { opacity:1; transform:translateY(-50%) translateX(0); }
+}
+/* Mobile: bottom tooltip above bottom sheet */
+@media(max-width:768px) {
+  #tip { bottom:160px; left:50%; transform:translateX(-50%) translateY(8px); }
+  #tip.show { opacity:1; transform:translateX(-50%) translateY(0); }
+}
+#tsym  { font-family:'Orbitron',sans-serif; font-size:clamp(22px,5vw,34px); font-weight:900; line-height:1; }
+#tname { font-size:clamp(12px,3vw,15px); margin:4px 0 2px; opacity:.88; }
+#tsub  { font-size:clamp(7px,1.8vw,9px); opacity:.4; letter-spacing:1.5px; margin-bottom:9px; }
+#tstats { display:flex; gap:14px; justify-content:center; border-top:1px solid rgba(255,255,255,0.08); padding-top:9px; }
+.ts { display:flex; flex-direction:column; align-items:center; gap:2px; }
+.ts-l { font-size:7px; opacity:.35; text-transform:uppercase; letter-spacing:1px; }
+.ts-v { font-family:'Orbitron',sans-serif; font-size:10px; font-weight:600; }
+
+/* ══════════════════════════════════════════
+   RESPONSIVE VISIBILITY
+══════════════════════════════════════════ */
+@media(min-width:769px) {
+  #ui-mobile { display:none; }
+  #m-logo    { display:none; }
+  #m-zoom    { display:none; }
+}
+@media(max-width:768px) {
+  #ui-desktop { display:none; }
+  #d-right    { display:none; }
+}
+</style>
+</head>
+<body>
+
+<canvas id="bgc"></canvas>
+
+<!-- ══ DESKTOP UI ══ -->
+<div id="ui-desktop">
+  <div id="logo">⬡ Periodic Table of Elements</div>
+  <div class="dbar" id="d-mode">
+    <button class="mbtn on"  data-mode="table">Table</button>
+    <button class="mbtn"     data-mode="sphere">Sphere</button>
+    <button class="mbtn"     data-mode="helix">Helix</button>
+    <button class="mbtn"     data-mode="grid">Grid</button>
+    <button class="mbtn"     data-mode="wave">Wave</button>
+    <button class="mbtn"     data-mode="galaxy">Galaxy</button>
+    <button class="mbtn"     data-mode="cube">Cube</button>
+    <button class="mbtn"     data-mode="dna">DNA</button>
+  </div>
+  <div class="dbar" id="d-filter">
+    <button class="fbtn on"  data-f="all">All</button>
+    <button class="fbtn"     data-f="alkali">Alkali</button>
+    <button class="fbtn"     data-f="alkaline">Alkaline</button>
+    <button class="fbtn"     data-f="transition">Transition</button>
+    <button class="fbtn"     data-f="lanthanide">Lanthanide</button>
+    <button class="fbtn"     data-f="actinide">Actinide</button>
+    <button class="fbtn"     data-f="post">Post-metal</button>
+    <button class="fbtn"     data-f="metalloid">Metalloid</button>
+    <button class="fbtn"     data-f="nonmetal">Nonmetal</button>
+    <button class="fbtn"     data-f="halogen">Halogen</button>
+    <button class="fbtn"     data-f="noble">Noble Gas</button>
+  </div>
+</div>
+
+<!-- Desktop right panel: search + zoom -->
+<div id="d-right">
+  <input id="d-srch" type="text" placeholder="🔍 Search..." autocomplete="off">
+  <div class="zbtn" id="dZin">+</div>
+  <div class="zbtn" id="dZout">−</div>
+</div>
+
+<!-- ══ MOBILE UI ══ -->
+<div id="m-logo">⬡ Periodic Table</div>
+
+<div id="m-zoom">
+  <div class="zbtn" id="mZin">+</div>
+  <div class="zbtn" id="mZout">−</div>
+</div>
+
+<div id="ui-mobile">
+  <div id="bottom-sheet">
+    <div id="bhandle"></div>
+    <div id="m-scroll"><div id="m-bar">
+      <button class="m-mbtn on"  data-mode="table">Table</button>
+      <button class="m-mbtn"     data-mode="sphere">Sphere</button>
+      <button class="m-mbtn"     data-mode="helix">Helix</button>
+      <button class="m-mbtn"     data-mode="grid">Grid</button>
+      <button class="m-mbtn"     data-mode="wave">Wave</button>
+      <button class="m-mbtn"     data-mode="galaxy">Galaxy</button>
+      <button class="m-mbtn"     data-mode="cube">Cube</button>
+      <button class="m-mbtn"     data-mode="dna">DNA</button>
+    </div></div>
+    <div class="m-div"></div>
+    <div id="f-scroll"><div id="f-bar">
+      <button class="m-fbtn on"  data-f="all">All</button>
+      <button class="m-fbtn"     data-f="alkali">Alkali</button>
+      <button class="m-fbtn"     data-f="alkaline">Alkaline</button>
+      <button class="m-fbtn"     data-f="transition">Transition</button>
+      <button class="m-fbtn"     data-f="lanthanide">Lanthanide</button>
+      <button class="m-fbtn"     data-f="actinide">Actinide</button>
+      <button class="m-fbtn"     data-f="post">Post-metal</button>
+      <button class="m-fbtn"     data-f="metalloid">Metalloid</button>
+      <button class="m-fbtn"     data-f="nonmetal">Nonmetal</button>
+      <button class="m-fbtn"     data-f="halogen">Halogen</button>
+      <button class="m-fbtn"     data-f="noble">Noble Gas</button>
+    </div></div>
+  </div>
+</div>
+
+<!-- ══ SCENE ══ -->
+<div id="scene"><div id="world"></div></div>
+
+<!-- ══ TOOLTIP ══ -->
+<div id="tip">
+  <div id="tsym"></div>
+  <div id="tname"></div>
+  <div id="tsub"></div>
+  <div id="tstats">
+    <div class="ts"><div class="ts-l">Mass</div><div class="ts-v" id="tmass"></div></div>
+    <div class="ts"><div class="ts-l">Group</div><div class="ts-v" id="tgroup"></div></div>
+    <div class="ts"><div class="ts-l">Period</div><div class="ts-v" id="tperiod"></div></div>
+    <div class="ts"><div class="ts-l">№</div><div class="ts-v" id="tnum"></div></div>
+  </div>
+</div>
+
+<script>
+/* ══════════════ DATA ══════════════ */
+const EL=[
+  {n:1,s:"H",name:"Hydrogen",mass:"1.008",cat:"nonmetal",r:1,c:1},
+  {n:2,s:"He",name:"Helium",mass:"4.003",cat:"noble",r:1,c:18},
+  {n:3,s:"Li",name:"Lithium",mass:"6.941",cat:"alkali",r:2,c:1},
+  {n:4,s:"Be",name:"Beryllium",mass:"9.012",cat:"alkaline",r:2,c:2},
+  {n:5,s:"B",name:"Boron",mass:"10.81",cat:"metalloid",r:2,c:13},
+  {n:6,s:"C",name:"Carbon",mass:"12.01",cat:"nonmetal",r:2,c:14},
+  {n:7,s:"N",name:"Nitrogen",mass:"14.01",cat:"nonmetal",r:2,c:15},
+  {n:8,s:"O",name:"Oxygen",mass:"16.00",cat:"nonmetal",r:2,c:16},
+  {n:9,s:"F",name:"Fluorine",mass:"19.00",cat:"halogen",r:2,c:17},
+  {n:10,s:"Ne",name:"Neon",mass:"20.18",cat:"noble",r:2,c:18},
+  {n:11,s:"Na",name:"Sodium",mass:"22.99",cat:"alkali",r:3,c:1},
+  {n:12,s:"Mg",name:"Magnesium",mass:"24.31",cat:"alkaline",r:3,c:2},
+  {n:13,s:"Al",name:"Aluminum",mass:"26.98",cat:"post",r:3,c:13},
+  {n:14,s:"Si",name:"Silicon",mass:"28.09",cat:"metalloid",r:3,c:14},
+  {n:15,s:"P",name:"Phosphorus",mass:"30.97",cat:"nonmetal",r:3,c:15},
+  {n:16,s:"S",name:"Sulfur",mass:"32.07",cat:"nonmetal",r:3,c:16},
+  {n:17,s:"Cl",name:"Chlorine",mass:"35.45",cat:"halogen",r:3,c:17},
+  {n:18,s:"Ar",name:"Argon",mass:"39.95",cat:"noble",r:3,c:18},
+  {n:19,s:"K",name:"Potassium",mass:"39.10",cat:"alkali",r:4,c:1},
+  {n:20,s:"Ca",name:"Calcium",mass:"40.08",cat:"alkaline",r:4,c:2},
+  {n:21,s:"Sc",name:"Scandium",mass:"44.96",cat:"transition",r:4,c:3},
+  {n:22,s:"Ti",name:"Titanium",mass:"47.87",cat:"transition",r:4,c:4},
+  {n:23,s:"V",name:"Vanadium",mass:"50.94",cat:"transition",r:4,c:5},
+  {n:24,s:"Cr",name:"Chromium",mass:"52.00",cat:"transition",r:4,c:6},
+  {n:25,s:"Mn",name:"Manganese",mass:"54.94",cat:"transition",r:4,c:7},
+  {n:26,s:"Fe",name:"Iron",mass:"55.85",cat:"transition",r:4,c:8},
+  {n:27,s:"Co",name:"Cobalt",mass:"58.93",cat:"transition",r:4,c:9},
+  {n:28,s:"Ni",name:"Nickel",mass:"58.69",cat:"transition",r:4,c:10},
+  {n:29,s:"Cu",name:"Copper",mass:"63.55",cat:"transition",r:4,c:11},
+  {n:30,s:"Zn",name:"Zinc",mass:"65.38",cat:"transition",r:4,c:12},
+  {n:31,s:"Ga",name:"Gallium",mass:"69.72",cat:"post",r:4,c:13},
+  {n:32,s:"Ge",name:"Germanium",mass:"72.63",cat:"metalloid",r:4,c:14},
+  {n:33,s:"As",name:"Arsenic",mass:"74.92",cat:"metalloid",r:4,c:15},
+  {n:34,s:"Se",name:"Selenium",mass:"78.97",cat:"nonmetal",r:4,c:16},
+  {n:35,s:"Br",name:"Bromine",mass:"79.90",cat:"halogen",r:4,c:17},
+  {n:36,s:"Kr",name:"Krypton",mass:"83.80",cat:"noble",r:4,c:18},
+  {n:37,s:"Rb",name:"Rubidium",mass:"85.47",cat:"alkali",r:5,c:1},
+  {n:38,s:"Sr",name:"Strontium",mass:"87.62",cat:"alkaline",r:5,c:2},
+  {n:39,s:"Y",name:"Yttrium",mass:"88.91",cat:"transition",r:5,c:3},
+  {n:40,s:"Zr",name:"Zirconium",mass:"91.22",cat:"transition",r:5,c:4},
+  {n:41,s:"Nb",name:"Niobium",mass:"92.91",cat:"transition",r:5,c:5},
+  {n:42,s:"Mo",name:"Molybdenum",mass:"95.96",cat:"transition",r:5,c:6},
+  {n:43,s:"Tc",name:"Technetium",mass:"(98)",cat:"transition",r:5,c:7},
+  {n:44,s:"Ru",name:"Ruthenium",mass:"101.1",cat:"transition",r:5,c:8},
+  {n:45,s:"Rh",name:"Rhodium",mass:"102.9",cat:"transition",r:5,c:9},
+  {n:46,s:"Pd",name:"Palladium",mass:"106.4",cat:"transition",r:5,c:10},
+  {n:47,s:"Ag",name:"Silver",mass:"107.9",cat:"transition",r:5,c:11},
+  {n:48,s:"Cd",name:"Cadmium",mass:"112.4",cat:"transition",r:5,c:12},
+  {n:49,s:"In",name:"Indium",mass:"114.8",cat:"post",r:5,c:13},
+  {n:50,s:"Sn",name:"Tin",mass:"118.7",cat:"post",r:5,c:14},
+  {n:51,s:"Sb",name:"Antimony",mass:"121.8",cat:"metalloid",r:5,c:15},
+  {n:52,s:"Te",name:"Tellurium",mass:"127.6",cat:"metalloid",r:5,c:16},
+  {n:53,s:"I",name:"Iodine",mass:"126.9",cat:"halogen",r:5,c:17},
+  {n:54,s:"Xe",name:"Xenon",mass:"131.3",cat:"noble",r:5,c:18},
+  {n:55,s:"Cs",name:"Cesium",mass:"132.9",cat:"alkali",r:6,c:1},
+  {n:56,s:"Ba",name:"Barium",mass:"137.3",cat:"alkaline",r:6,c:2},
+  {n:57,s:"La",name:"Lanthanum",mass:"138.9",cat:"lanthanide",r:8,c:3},
+  {n:58,s:"Ce",name:"Cerium",mass:"140.1",cat:"lanthanide",r:8,c:4},
+  {n:59,s:"Pr",name:"Praseodymium",mass:"140.9",cat:"lanthanide",r:8,c:5},
+  {n:60,s:"Nd",name:"Neodymium",mass:"144.2",cat:"lanthanide",r:8,c:6},
+  {n:61,s:"Pm",name:"Promethium",mass:"(145)",cat:"lanthanide",r:8,c:7},
+  {n:62,s:"Sm",name:"Samarium",mass:"150.4",cat:"lanthanide",r:8,c:8},
+  {n:63,s:"Eu",name:"Europium",mass:"152.0",cat:"lanthanide",r:8,c:9},
+  {n:64,s:"Gd",name:"Gadolinium",mass:"157.3",cat:"lanthanide",r:8,c:10},
+  {n:65,s:"Tb",name:"Terbium",mass:"158.9",cat:"lanthanide",r:8,c:11},
+  {n:66,s:"Dy",name:"Dysprosium",mass:"162.5",cat:"lanthanide",r:8,c:12},
+  {n:67,s:"Ho",name:"Holmium",mass:"164.9",cat:"lanthanide",r:8,c:13},
+  {n:68,s:"Er",name:"Erbium",mass:"167.3",cat:"lanthanide",r:8,c:14},
+  {n:69,s:"Tm",name:"Thulium",mass:"168.9",cat:"lanthanide",r:8,c:15},
+  {n:70,s:"Yb",name:"Ytterbium",mass:"173.1",cat:"lanthanide",r:8,c:16},
+  {n:71,s:"Lu",name:"Lutetium",mass:"175.0",cat:"lanthanide",r:8,c:17},
+  {n:72,s:"Hf",name:"Hafnium",mass:"178.5",cat:"transition",r:6,c:4},
+  {n:73,s:"Ta",name:"Tantalum",mass:"180.9",cat:"transition",r:6,c:5},
+  {n:74,s:"W",name:"Tungsten",mass:"183.8",cat:"transition",r:6,c:6},
+  {n:75,s:"Re",name:"Rhenium",mass:"186.2",cat:"transition",r:6,c:7},
+  {n:76,s:"Os",name:"Osmium",mass:"190.2",cat:"transition",r:6,c:8},
+  {n:77,s:"Ir",name:"Iridium",mass:"192.2",cat:"transition",r:6,c:9},
+  {n:78,s:"Pt",name:"Platinum",mass:"195.1",cat:"transition",r:6,c:10},
+  {n:79,s:"Au",name:"Gold",mass:"197.0",cat:"transition",r:6,c:11},
+  {n:80,s:"Hg",name:"Mercury",mass:"200.6",cat:"transition",r:6,c:12},
+  {n:81,s:"Tl",name:"Thallium",mass:"204.4",cat:"post",r:6,c:13},
+  {n:82,s:"Pb",name:"Lead",mass:"207.2",cat:"post",r:6,c:14},
+  {n:83,s:"Bi",name:"Bismuth",mass:"209.0",cat:"post",r:6,c:15},
+  {n:84,s:"Po",name:"Polonium",mass:"(209)",cat:"post",r:6,c:16},
+  {n:85,s:"At",name:"Astatine",mass:"(210)",cat:"halogen",r:6,c:17},
+  {n:86,s:"Rn",name:"Radon",mass:"(222)",cat:"noble",r:6,c:18},
+  {n:87,s:"Fr",name:"Francium",mass:"(223)",cat:"alkali",r:7,c:1},
+  {n:88,s:"Ra",name:"Radium",mass:"(226)",cat:"alkaline",r:7,c:2},
+  {n:89,s:"Ac",name:"Actinium",mass:"(227)",cat:"actinide",r:9,c:3},
+  {n:90,s:"Th",name:"Thorium",mass:"232.0",cat:"actinide",r:9,c:4},
+  {n:91,s:"Pa",name:"Protactinium",mass:"231.0",cat:"actinide",r:9,c:5},
+  {n:92,s:"U",name:"Uranium",mass:"238.0",cat:"actinide",r:9,c:6},
+  {n:93,s:"Np",name:"Neptunium",mass:"(237)",cat:"actinide",r:9,c:7},
+  {n:94,s:"Pu",name:"Plutonium",mass:"(244)",cat:"actinide",r:9,c:8},
+  {n:95,s:"Am",name:"Americium",mass:"(243)",cat:"actinide",r:9,c:9},
+  {n:96,s:"Cm",name:"Curium",mass:"(247)",cat:"actinide",r:9,c:10},
+  {n:97,s:"Bk",name:"Berkelium",mass:"(247)",cat:"actinide",r:9,c:11},
+  {n:98,s:"Cf",name:"Californium",mass:"(251)",cat:"actinide",r:9,c:12},
+  {n:99,s:"Es",name:"Einsteinium",mass:"(252)",cat:"actinide",r:9,c:13},
+  {n:100,s:"Fm",name:"Fermium",mass:"(257)",cat:"actinide",r:9,c:14},
+  {n:101,s:"Md",name:"Mendelevium",mass:"(258)",cat:"actinide",r:9,c:15},
+  {n:102,s:"No",name:"Nobelium",mass:"(259)",cat:"actinide",r:9,c:16},
+  {n:103,s:"Lr",name:"Lawrencium",mass:"(266)",cat:"actinide",r:9,c:17},
+  {n:104,s:"Rf",name:"Rutherfordium",mass:"(267)",cat:"transition",r:7,c:4},
+  {n:105,s:"Db",name:"Dubnium",mass:"(268)",cat:"transition",r:7,c:5},
+  {n:106,s:"Sg",name:"Seaborgium",mass:"(269)",cat:"transition",r:7,c:6},
+  {n:107,s:"Bh",name:"Bohrium",mass:"(270)",cat:"transition",r:7,c:7},
+  {n:108,s:"Hs",name:"Hassium",mass:"(277)",cat:"transition",r:7,c:8},
+  {n:109,s:"Mt",name:"Meitnerium",mass:"(278)",cat:"unknown",r:7,c:9},
+  {n:110,s:"Ds",name:"Darmstadtium",mass:"(281)",cat:"unknown",r:7,c:10},
+  {n:111,s:"Rg",name:"Roentgenium",mass:"(282)",cat:"unknown",r:7,c:11},
+  {n:112,s:"Cn",name:"Copernicium",mass:"(285)",cat:"transition",r:7,c:12},
+  {n:113,s:"Nh",name:"Nihonium",mass:"(286)",cat:"unknown",r:7,c:13},
+  {n:114,s:"Fl",name:"Flerovium",mass:"(289)",cat:"unknown",r:7,c:14},
+  {n:115,s:"Mc",name:"Moscovium",mass:"(290)",cat:"unknown",r:7,c:15},
+  {n:116,s:"Lv",name:"Livermorium",mass:"(293)",cat:"unknown",r:7,c:16},
+  {n:117,s:"Ts",name:"Tennessine",mass:"(294)",cat:"unknown",r:7,c:17},
+  {n:118,s:"Og",name:"Oganesson",mass:"(294)",cat:"noble",r:7,c:18},
+];
+
+const CLR={
+  alkali:'#ff4757',alkaline:'#ffa502',lanthanide:'#2ed573',
+  actinide:'#1e90ff',transition:'#00d2d3',post:'#a29bfe',
+  metalloid:'#fdcb6e',nonmetal:'#fd79a8',halogen:'#ff6348',
+  noble:'#eccc68',unknown:'#576574'
+};
+
+/* ══════════════ DETECT DEVICE ══════════════ */
+const isMobile = () => window.innerWidth <= 768;
+
+function setCardSize() {
+  const w = window.innerWidth;
+  let cs;
+  if (w <= 360)      cs = 40;
+  else if (w <= 480) cs = 46;
+  else if (w <= 768) cs = 50;
+  else               cs = 58;
+  document.documentElement.style.setProperty('--cs', cs + 'px');
+  return cs;
+}
+
+/* ══════════════ STAR BACKGROUND ══════════════ */
+(()=>{
+  const cv=document.getElementById('bgc'), cx=cv.getContext('2d');
+  let W,H,stars=[];
+  const resize=()=>{
+    W=cv.width=innerWidth; H=cv.height=innerHeight;
+    stars=Array.from({length:180},()=>({
+      x:Math.random()*W, y:Math.random()*H,
+      r:Math.random()*1.3+.2,
+      a:Math.random()*.4, da:(Math.random()-.5)*.004,
+      max:Math.random()*.5+.08
+    }));
+  };
+  const draw=()=>{
+    cx.clearRect(0,0,W,H);
+    [{x:.2,y:.3,r:W*.38,c:'rgba(30,144,255,.022)'},{x:.8,y:.7,r:W*.32,c:'rgba(140,60,255,.018)'},{x:.5,y:.05,r:W*.25,c:'rgba(0,210,211,.015)'}]
+      .forEach(({x,y,r,c})=>{ const g=cx.createRadialGradient(x*W,y*H,0,x*W,y*H,r); g.addColorStop(0,c); g.addColorStop(1,'transparent'); cx.fillStyle=g; cx.fillRect(0,0,W,H); });
+    stars.forEach(s=>{
+      s.a+=s.da; if(s.a<0||s.a>s.max)s.da*=-1; s.a=Math.max(0,Math.min(s.max,s.a));
+      cx.beginPath(); cx.arc(s.x,s.y,s.r,0,Math.PI*2); cx.fillStyle=`rgba(255,255,255,${s.a})`; cx.fill();
+    });
+    requestAnimationFrame(draw);
+  };
+  addEventListener('resize',resize); resize(); draw();
+})();
+
+/* ══════════════ BUILD CARDS ══════════════ */
+const world=document.getElementById('world');
+const nodes=EL.map((el,i)=>{
+  const color=CLR[el.cat]||'#576574';
+  const sc=el.s.length===1?'sym1':el.s.length===2?'sym2':'sym3';
+  const nm=el.name.length>11?el.name.slice(0,10)+'…':el.name;
+  const d=document.createElement('div');
+  d.className=`atom ${sc}`; d.style.cssText=`--c:${color}`;
+  d.innerHTML=`<div class="face">
+    <div class="a-num">${el.n}</div>
+    <div class="a-sym">${el.s}</div>
+    <div class="a-name">${nm}</div>
+    <div class="a-mass">${el.mass}</div>
+  </div>`;
+  d.addEventListener('pointerenter',()=>showTip(el,color));
+  d.addEventListener('pointerleave',hideTip);
+  d.addEventListener('click',()=>showTip(el,color));
+  world.appendChild(d);
+  return{d,el,i};
+});
+
+/* ══════════════ TOOLTIP ══════════════ */
+const tipEl=document.getElementById('tip');
+let tipT;
+function showTip(el,color){
+  clearTimeout(tipT);
+  tipEl.style.color=color;
+  tipEl.style.borderColor=`color-mix(in srgb,${color} 30%,transparent)`;
+  document.getElementById('tsym').textContent=el.s;
+  document.getElementById('tname').textContent=el.name;
+  document.getElementById('tsub').textContent=el.cat.replace(/([a-z])([A-Z])/g,'$1 $2').toUpperCase()+' · №'+el.n;
+  document.getElementById('tmass').textContent=el.mass;
+  document.getElementById('tgroup').textContent=el.c;
+  document.getElementById('tperiod').textContent=el.r>7?(el.cat==='lanthanide'?'Ln':'Ac'):el.r;
+  document.getElementById('tnum').textContent=el.n;
+  tipEl.classList.add('show');
+}
+function hideTip(){tipT=setTimeout(()=>tipEl.classList.remove('show'),700);}
+
+/* ══════════════ LAYOUTS ══════════════ */
+function CS(){ return parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--cs'))||58; }
+
+function pos_table(){
+  const s=CS()+3;
+  return nodes.map(({el})=>{
+    let row=el.r,col=el.c;
+    if(el.r===8)row=8.9; if(el.r===9)row=9.9;
+    return{x:(col-9.5)*s, y:(row-5.2)*s, z:0};
+  });
+}
+function pos_sphere(){
+  const n=EL.length, R=Math.max(290,CS()*5.1);
+  return nodes.map(({i})=>{
+    const phi=Math.acos(1-2*(i+.5)/n), theta=Math.PI*(1+Math.sqrt(5))*(i+.5);
+    return{x:R*Math.sin(phi)*Math.cos(theta), y:R*Math.sin(phi)*Math.sin(theta), z:R*Math.cos(phi)};
+  });
+}
+function pos_helix(){
+  const s=CS()+3, R=190;
+  return nodes.map(({i})=>{
+    const t=(i/EL.length)*Math.PI*8;
+    return{x:R*Math.cos(t), y:(i-59)*s*.54, z:R*Math.sin(t)};
+  });
+}
+function pos_grid(){
+  const s=CS()+6, cols=10,rows=6,deps=2;
+  return nodes.map(({i})=>({
+    x:((i%cols)-(cols-1)/2)*s,
+    y:((Math.floor(i/cols)%rows)-(rows-1)/2)*s,
+    z:((Math.floor(i/(cols*rows))%deps)-(deps-1)/2)*s*2
+  }));
+}
+function pos_wave(){
+  const s=CS()+4, cols=12;
+  return nodes.map(({i})=>{
+    const col=i%cols, row=Math.floor(i/cols), t=col*.6+row*.3;
+    return{x:(col-cols/2+.5)*s, y:(row-5)*s+Math.sin(t)*s*1.8, z:Math.cos(t*.8)*s*1.6};
+  });
+}
+function pos_galaxy(){
+  const arms=3;
+  return nodes.map(({i})=>{
+    const arm=i%arms, j=Math.floor(i/arms), total=Math.ceil(EL.length/arms);
+    const t=(j/total)*Math.PI*2.5, R=80+t*52, angle=t+(arm*Math.PI*2/arms);
+    const y=(arm===1?1:-1)*(j%7)*6-(arm===0?(j%5)*4:0);
+    return{x:R*Math.cos(angle), y, z:R*Math.sin(angle)};
+  });
+}
+function pos_cube(){
+  const s=CS()+6, n=5;
+  return nodes.map(({i})=>({
+    x:((i%n)-2)*s, y:((Math.floor(i/n)%n)-2)*s, z:((Math.floor(i/(n*n)))-2)*s
+  }));
+}
+function pos_dna(){
+  const s=CS()+2, R=150, turns=5;
+  return nodes.map(({i})=>{
+    const strand=i%2, j=Math.floor(i/2), total=Math.ceil(EL.length/2);
+    const t=(j/total)*Math.PI*2*turns, angle=t+(strand?Math.PI:0);
+    return{x:R*Math.cos(angle), y:(j-total/2)*s*.72+(strand?s*.36:0), z:R*Math.sin(angle)};
+  });
+}
+
+const MODES={table:pos_table,sphere:pos_sphere,helix:pos_helix,
+  grid:pos_grid,wave:pos_wave,galaxy:pos_galaxy,cube:pos_cube,dna:pos_dna};
+
+// Default scale per mode — auto-adjusted for mobile
+const MSCALE={table:.62,sphere:1,helix:.88,grid:.82,wave:.82,galaxy:.78,cube:1,dna:.95};
+
+/* ══════════════ STATE & RENDER ══════════════ */
+let curMode='table', curFilter='all', curSearch='';
+
+function render(){
+  const pos=MODES[curMode]();
+  nodes.forEach(({d,el},i)=>{
+    const{x,y,z}=pos[i];
+    d.style.transform=`translate3d(calc(${x}px - 50%),calc(${y}px - 50%),${z}px)`;
+    const fOk=curFilter==='all'||el.cat===curFilter;
+    const q=curSearch.toLowerCase();
+    const sOk=!q||el.s.toLowerCase().includes(q)||el.name.toLowerCase().includes(q)||String(el.n).includes(q);
+    if(fOk&&sOk){d.style.opacity='1';d.style.pointerEvents='auto';d.classList.remove('dim');}
+    else{d.style.opacity='0.04';d.style.pointerEvents='none';d.classList.add('dim');}
+  });
+}
+
+/* ══════════════ ROTATION / DRAG ══════════════ */
+let rotX=-16, rotY=0, sc=MSCALE.table;
+let drag=false, lx=0, ly=0, vx=0, vy=0;
+let autoR=true, autoT;
+
+function applyTf(){
+  world.style.transform=`rotateX(${rotX}deg) rotateY(${rotY}deg) scale3d(${sc},${sc},${sc})`;
+}
+function stopAuto(){ autoR=false; clearTimeout(autoT); autoT=setTimeout(()=>{autoR=true;},4500); }
+function setMode(mode){
+  curMode=mode;
+  // scale smaller on mobile
+  const base=MSCALE[mode]||1;
+  sc = isMobile() ? base*0.75 : base;
+  applyTf(); render();
+}
+
+/* Mouse */
+const scene=document.getElementById('scene');
+scene.addEventListener('mousedown',e=>{
+  // ignore if clicking UI elements
+  if(e.target.closest('#ui-desktop,#d-right'))return;
+  drag=true; lx=e.clientX; ly=e.clientY; vx=vy=0; stopAuto();
+});
+addEventListener('mousemove',e=>{
+  if(!drag)return;
+  vx=(e.clientY-ly)*.27; vy=(e.clientX-lx)*.27;
+  rotX+=vx; rotY+=vy; lx=e.clientX; ly=e.clientY; applyTf();
+});
+addEventListener('mouseup',()=>drag=false);
+scene.addEventListener('wheel',e=>{
+  e.preventDefault();
+  sc=Math.min(4,Math.max(.2,sc*(1-e.deltaY*.001))); applyTf();
+},{passive:false});
+
+/* Touch */
+let pinch0=0, tlx=0, tly=0, touchDragging=false;
+scene.addEventListener('touchstart',e=>{
+  if(e.target.closest('#ui-mobile'))return;
+  e.preventDefault(); stopAuto();
+  if(e.touches.length===1){
+    tlx=e.touches[0].clientX; tly=e.touches[0].clientY; touchDragging=true;
+  } else if(e.touches.length===2){
+    touchDragging=false;
+    pinch0=Math.hypot(e.touches[0].clientX-e.touches[1].clientX,
+                      e.touches[0].clientY-e.touches[1].clientY);
+  }
+},{passive:false});
+scene.addEventListener('touchmove',e=>{
+  if(e.target.closest('#ui-mobile'))return;
+  e.preventDefault();
+  if(e.touches.length===1&&touchDragging){
+    rotX+=(e.touches[0].clientY-tly)*.35;
+    rotY+=(e.touches[0].clientX-tlx)*.35;
+    tlx=e.touches[0].clientX; tly=e.touches[0].clientY; applyTf();
+  } else if(e.touches.length===2){
+    const d=Math.hypot(e.touches[0].clientX-e.touches[1].clientX,
+                       e.touches[0].clientY-e.touches[1].clientY);
+    sc=Math.min(4,Math.max(.2,sc*d/pinch0)); pinch0=d; applyTf();
+  }
+},{passive:false});
+scene.addEventListener('touchend',e=>{
+  touchDragging=false;
+  if(!e.touches.length) autoT=setTimeout(()=>autoR=true,4500);
+});
+
+/* Zoom buttons */
+function zoom(dir){ sc=Math.min(4,Math.max(.2,dir>0?sc*1.18:sc/1.18)); applyTf(); }
+document.getElementById('dZin').addEventListener('click',()=>zoom(1));
+document.getElementById('dZout').addEventListener('click',()=>zoom(-1));
+document.getElementById('mZin').addEventListener('click',()=>zoom(1));
+document.getElementById('mZout').addEventListener('click',()=>zoom(-1));
+
+/* RAF loop */
+(function loop(){
+  if(!drag&&!touchDragging){
+    if(autoR){rotY+=.12;applyTf();}
+    else{vx*=.9;vy*=.9;if(Math.abs(vx)>.005||Math.abs(vy)>.005){rotX+=vx;rotY+=vy;applyTf();}}
+  }
+  requestAnimationFrame(loop);
+})();
+
+/* ══════════════ CONTROLS WIRING ══════════════ */
+// Desktop mode buttons
+document.querySelectorAll('#d-mode .mbtn').forEach(b=>b.addEventListener('click',()=>{
+  document.querySelectorAll('#d-mode .mbtn, #m-bar .m-mbtn').forEach(x=>x.classList.remove('on'));
+  document.querySelectorAll(`[data-mode="${b.dataset.mode}"]`).forEach(x=>x.classList.add('on'));
+  setMode(b.dataset.mode);
+}));
+// Mobile mode buttons
+document.querySelectorAll('#m-bar .m-mbtn').forEach(b=>b.addEventListener('click',()=>{
+  document.querySelectorAll('#d-mode .mbtn, #m-bar .m-mbtn').forEach(x=>x.classList.remove('on'));
+  document.querySelectorAll(`[data-mode="${b.dataset.mode}"]`).forEach(x=>x.classList.add('on'));
+  setMode(b.dataset.mode);
+}));
+
+// Desktop filter buttons
+document.querySelectorAll('#d-filter .fbtn').forEach(b=>b.addEventListener('click',()=>{
+  document.querySelectorAll('#d-filter .fbtn, #f-bar .m-fbtn').forEach(x=>x.classList.remove('on'));
+  document.querySelectorAll(`[data-f="${b.dataset.f}"]`).forEach(x=>x.classList.add('on'));
+  curFilter=b.dataset.f; render();
+}));
+// Mobile filter buttons
+document.querySelectorAll('#f-bar .m-fbtn').forEach(b=>b.addEventListener('click',()=>{
+  document.querySelectorAll('#d-filter .fbtn, #f-bar .m-fbtn').forEach(x=>x.classList.remove('on'));
+  document.querySelectorAll(`[data-f="${b.dataset.f}"]`).forEach(x=>x.classList.add('on'));
+  curFilter=b.dataset.f; render();
+}));
+
+// Search
+document.getElementById('d-srch').addEventListener('input',e=>{
+  curSearch=e.target.value.trim(); render();
+});
+
+/* ══════════════ INIT ══════════════ */
+setCardSize();
+window.addEventListener('resize',()=>{ setCardSize(); render(); });
+// mobile: start smaller
+if(isMobile()) sc = MSCALE.table * 0.75;
+applyTf();
+render();
+</script>
+</body>
+</html>
