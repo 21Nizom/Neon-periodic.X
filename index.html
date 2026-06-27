@@ -796,13 +796,12 @@ render();
 </div>
 
 <style>
-    /* БАЗОВЫЙ СТИЛЬ ДЛЯ НОУТБУКОВ */
     .cyber-menu-trigger, .cyber-close-btn { display: none; }
     
     .cyber-nav-deck {
         position: fixed; top: 15px; left: 50%; transform: translateX(-50%);
         display: flex; align-items: center; justify-content: space-between; gap: 10px;
-        z-index: 999999; background: rgba(4, 10, 18, 0.95); padding: 6px 12px;
+        z-index: 2147483647; background: rgba(4, 10, 18, 0.95); padding: 6px 12px;
         border-radius: 6px; border: 1px solid #00ffcc;
         box-shadow: 0 0 20px rgba(0, 255, 204, 0.25); backdrop-filter: blur(6px);
         width: 94%; max-width: 600px; font-family: 'Courier New', Courier, monospace;
@@ -816,8 +815,8 @@ render();
     .cyber-node:hover, .cyber-node:active { background: rgba(0, 255, 204, 0.12); border-color: #00ffcc; text-shadow: 0 0 6px #00ffcc; }
     .cyber-core { width: 6px; height: 6px; background: #2a3a3a; border-radius: 50%; display: inline-block; }
     
-    .cyber-node.active { color: #fff; border-color: #ff007f; background: rgba(255, 0, 127, 0.1); box-shadow: 0 0 10px rgba(255, 0, 127, 0.25); text-shadow: 0 0 5px #ff007f; }
-    .cyber-node.active .cyber-core { background: #00ff00; box-shadow: 0 0 8px #00ff00; animation: cyber-pulse 1.5s infinite; }
+    .cyber-node.active { color: #fff; border-color: #00ff66; background: rgba(0, 255, 102, 0.15); box-shadow: 0 0 10px rgba(0, 255, 102, 0.3); text-shadow: 0 0 5px #00ff66; }
+    .cyber-node.active .cyber-core { background: #00ff66; box-shadow: 0 0 8px #00ff66; animation: chem-pulse 1.5s infinite; }
 
     .cyber-hud-btn {
         background: transparent; border: 1px solid #ffaa00; color: #ffaa00;
@@ -827,24 +826,25 @@ render();
     .cyber-hud-btn:hover, .cyber-hud-btn:active, .cyber-hud-btn.hud-on { background: rgba(255, 170, 0, 0.2); box-shadow: 0 0 12px #ffaa00; text-shadow: 0 0 5px #ffaa00; }
 
     .cyber-scan-overlay {
-        position: fixed; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 999998;
+        position: fixed; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 2147483646;
         background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 255, 100, 0.06) 50%), linear-gradient(90deg, rgba(255, 0, 0, 0.03), rgba(0, 255, 0, 0.01), rgba(0, 0, 255, 0.03));
         background-size: 100% 4px, 6px 100%; opacity: 0; transition: opacity 0.4s ease;
     }
     body.hud-active .cyber-scan-overlay { opacity: 1; animation: matrix-flicker 0.15s infinite; }
 
-    /* АДАПТИВНАЯ ВЫДВИЖНАЯ ПАНЕЛЬ ДЛЯ СМАРТФОНОВ */
+    /* МОБИЛЬНАЯ ВЕРСИЯ — ДИЗАЙН: ЛАБОРАТОРНЫЙ ТЕРМИНАЛ */
     @media (max-width: 600px) {
         .cyber-menu-trigger {
-            display: block; position: fixed; top: 15px; right: 15px; z-index: 10000000;
-            background: rgba(4, 10, 18, 0.95); border: 1px solid #00ffcc; color: #00ffcc;
-            padding: 10px 14px; font-family: 'Courier New', Courier, monospace; font-size: 12px;
+            display: block !important; position: fixed !important; top: 12px !important; right: 12px !important; 
+            z-index: 2147483647 !important; pointer-events: auto !important;
+            background: rgba(4, 16, 14, 0.95); border: 2px solid #00ffcc; color: #00ffcc;
+            padding: 12px 16px; font-family: 'Courier New', Courier, monospace; font-size: 13px;
             font-weight: bold; border-radius: 4px; box-shadow: 0 0 15px rgba(0, 255, 204, 0.4);
             cursor: pointer; touch-action: manipulation;
         }
         .cyber-close-btn {
             display: block; position: absolute; top: 15px; right: 15px;
-            background: transparent; border: 1px solid #ff007f; color: #ff007f;
+            background: transparent; border: 1px solid #00ffcc; color: #00ffcc;
             padding: 8px 12px; font-family: 'Courier New', Courier, monospace; font-size: 11px;
             font-weight: bold; border-radius: 4px; cursor: pointer;
         }
@@ -853,34 +853,28 @@ render();
             width: 270px; height: 100%; flex-direction: column; justify-content: flex-start;
             align-items: stretch; gap: 35px; padding: 80px 20px 40px 20px;
             border-radius: 0; border: none; border-left: 2px solid #00ffcc;
-            background: rgba(3, 8, 15, 0.98); box-shadow: -10px 0 30px rgba(0, 255, 204, 0.2);
+            background: rgba(2, 10, 8, 0.98); box-shadow: -10px 0 30px rgba(0, 255, 204, 0.2);
             transition: right 0.3s cubic-bezier(0.1, 0.9, 0.2, 1);
         }
         .cyber-nav-deck.open { right: 0; }
         .cyber-links-wrap { flex-direction: column; gap: 14px; }
-        .cyber-node { font-size: 14px; padding: 14px 12px; border: 1px solid rgba(0, 255, 204, 0.15); justify-content: flex-start; }
-        .cyber-node.active { border-color: #ff007f; }
+        .cyber-node { font-size: 14px; padding: 14px 12px; border: 1px solid rgba(0, 255, 204, 0.2); justify-content: flex-start; color: #00ffcc; }
+        .cyber-node.active { border-color: #00ff66; color: #00ff66; background: rgba(0, 255, 102, 0.1); }
         .cyber-hud-btn { width: 100%; padding: 14px; font-size: 12px; text-align: center; margin-top: auto; }
     }
-    @keyframes cyber-pulse { 0%, 100% { opacity: 0.3; } 50% { opacity: 1; } }
+    @keyframes chem-pulse { 0%, 100% { opacity: 0.4; } 50% { opacity: 1; text-shadow: 0 0 8px #00ff66; } }
     @keyframes matrix-flicker { 0% { opacity: 0.95; } 50% { opacity: 1; } 100% { opacity: 0.97; } }
 </style>
 
 <script>
-    // Убойный неуязвимый обработчик событий
     document.addEventListener('click', function(e) {
         const trigger = e.target.closest('#menuTrigger');
         const close = e.target.closest('#menuClose');
         const hud = e.target.closest('#hudTrigger');
+        const deck = document.getElementById('navDeck');
         
-        if (trigger) {
-            const deck = document.getElementById('navDeck');
-            if (deck) deck.classList.add('open');
-        }
-        if (close) {
-            const deck = document.getElementById('navDeck');
-            if (deck) deck.classList.remove('open');
-        }
+        if (trigger) { if (deck) deck.classList.add('open'); }
+        if (close) { if (deck) deck.classList.remove('open'); }
         if (hud) {
             e.preventDefault();
             document.body.classList.toggle('hud-active');
